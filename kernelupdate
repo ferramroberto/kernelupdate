@@ -1,0 +1,41 @@
+#!/bin/sh
+## aggiornato il 15 luglio 2013
+
+list=$(lynx --dump http://kernel.ubuntu.com/~kernel-ppa/mainline/ | awk '/http/{print $2}')
+AddressLastVersion=$( echo "${list}"  | grep -v rc | tail -n 1)
+LastKernelAvaliable=$(echo $AddressLastVersion | cut -d "/" -f 6 | cut -d "-" -f1 | tr -d v )
+
+# se il terzo decimale Ã¨ vuoto (3.10__), aggiunge ".0" (3.10.0)
+if [ -z $(echo $LastKernelAvaliable | cut -d "." -f3) ]  ; then LastKernelAvaliable=${LastKernelAvaliable}.0; fi  
+
+LastKernelInstalled=$(ls /boot/ | grep img | cut -d "-" -f2 | sort -V | cut -d "." -f1,2,3 | tail -n 1)
+
+if [ $LastKernelInstalled = $LastKernelAvaliable ]  ### se diverso quello disponibile e' superiore...
+   then
+	echo  "\n\n\t Your kernel is updated: " $LastKernelInstalled  "\n\n" # non serve "echo -e"
+	exit
+   else 
+	echo  "\n\n\t Your Kernel is:   " $LastKernelInstalled  "\n\t Kernel Avaliable: " $LastKernelAvaliable  "\n\n"
+	sleep 2
+	read -p "Press Enter to install the last version, or abort by pressing CTRL+C" nothing
+fi
+
+#controlla architettura processore
+arch=`uname -m`
+if  [ $arch = i686 ] || [ $arch = i386 ]; then myarch="i386"; elif [ $arch = "x86_64" ]; then myarch="amd64"; else echo "Unsupported Architecture"; fi
+
+## crea cartella per download
+DownloadFolder=$HOME/Scrivania/kernel_$LastKernelAvaliable  ; mkdir -p $DownloadFolder ; cd $DownloadFolder
+
+#### scarica e installa
+wget $(lynx -dump -listonly $AddressLastVersion | awk '/http/{print $2}' | egrep 'all.deb|'$myarch'.deb' )
+sudo dpkg -i *.deb
+
+### domanda se cancellare cartella download
+echo "/n/n" ;  read -p "Press Enter to remove the folder $DownloadFolder , or abort by pressing CTRL+C" nothing
+sudo rm -rf $DownloadFolder
+
+### domanda se rimuovere kernel precedente
+PenultimaVersione=$(ls /boot/ | grep img | cut -d "-" -f2,3 | sort -V | tail -n2 | head -n1)
+echo "/n/n"  ;  read -p "Press Enter to remove the old kernel $PenultimaVersione , or abort by pressing CTRL+C" nothing
+sudo apt-get remove $PenultimaVersione
